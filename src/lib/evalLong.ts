@@ -12,6 +12,7 @@ type Step = {
 
 export type LongEval = {
   ok: boolean;
+  lastPrice: number | null;  
   steps: Step[];
   entry?: number;
   sl?: number;
@@ -152,5 +153,6 @@ export function evalLong(
   });
 
   const ok = steps.every((s) => s.pass);
-  return { ok, steps, entry, sl, tp1, tp2, rr: rr1 ?? undefined };
+  const lastPrice = last(m5)?.close ?? null;
+  return { ok, lastPrice , steps, entry, sl, tp1, tp2, rr: rr1 ?? undefined };
 }
