@@ -1,1 +1,24 @@
 @import "tailwindcss";
+/* ===== Pro horizontal scrollbar ===== */
+.scroll-pro {
+  scrollbar-width: thin;              /* Firefox */
+  scrollbar-color: rgba(255,255,255,.25) transparent;
+}
+
+.scroll-pro::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroll-pro::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-pro::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.scroll-pro::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}

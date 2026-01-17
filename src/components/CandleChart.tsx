@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   createChart,
-  type IChartApi,
   CandlestickSeries,
+  LineSeries,
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+  type Time,
   type CandlestickData,
+  type SeriesMarker,
+  type ISeriesMarkersPluginApi,
 } from "lightweight-charts";
 
-type Candle = {
+export type Candle = {
   time: number; // unix seconds
   open: number;
   high: number;
@@ -16,83 +23,151 @@ type Candle = {
   close: number;
 };
 
-export function CandleChart({ candles }: { candles: Candle[] }) {
-  const ref = useRef<HTMLDivElement | null>(null);
+export type PivotPoint = {
+  time: number; // unix seconds
+  price: number;
+  kind: "high" | "low";
+  label?: string;
+};
+
+export type TrendLine = {
+  a: { time: number; price: number };
+  b: { time: number; price: number };
+};
+export type TrendLines = { high?: TrendLine; low?: TrendLine };
+
+type Props = {
+  candles: Candle[];
+  pivots?: PivotPoint[];
+  highlights?: PivotPoint[];
+  trendLines?: TrendLines;
+  height?: number;
+};
+
+function ts(t: number): UTCTimestamp {
+  return t as UTCTimestamp;
+}
+
+export function CandleChart({
+  candles,
+  pivots = [],
+  highlights = [],
+  trendLines,
+  height = 320,
+}: Props) {
+  const elRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const highLineRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const lowLineRef = useRef<ISeriesApi<"Line"> | null>(null);
+
+  // ✅ Use library Time generic (v5 Time can be UTCTimestamp | BusinessDay | string)
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+
+  const candleData = useMemo<CandlestickData[]>(() => {
+    return (candles ?? []).map((c) => ({
+      time: ts(c.time),
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+  }, [candles]);
 
   useEffect(() => {
-    if (!ref.current) return;
+    if (!elRef.current) return;
 
-    // create chart once
-    const chart = createChart(ref.current, {
-      height: 320,
+    const chart = createChart(elRef.current, {
+      height,
       autoSize: true,
       layout: { textColor: "#e5e7eb", background: { color: "transparent" } },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
+      crosshair: { mode: 1 },
     });
 
     chartRef.current = chart;
 
-    const series = chart.addSeries(CandlestickSeries, {});
+    const candleSeries = chart.addSeries(CandlestickSeries, {});
+    candleSeriesRef.current = candleSeries;
 
-    const data: CandlestickData[] = candles.map((c) => ({
-      time: c.time as any, // lightweight-charts expects UTCTimestamp; this is fine
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
+    // ✅ v5+ markers plugin
+    markersRef.current = createSeriesMarkers(candleSeries);
 
-    series.setData(data);
-    chart.timeScale().fitContent();
+    const highLine = chart.addSeries(LineSeries, { lineWidth: 2 });
+    const lowLine = chart.addSeries(LineSeries, { lineWidth: 2 });
+    highLineRef.current = highLine;
+    lowLineRef.current = lowLine;
 
     return () => {
       chart.remove();
       chartRef.current = null;
+      candleSeriesRef.current = null;
+      highLineRef.current = null;
+      lowLineRef.current = null;
+      markersRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // init once
+  }, [height]);
 
   useEffect(() => {
-    if (!ref.current) return;
+    const chart = chartRef.current;
+    const candleSeries = candleSeriesRef.current;
+    if (!chart || !candleSeries) return;
 
-    // simplest approach: re-create when candles change (stable + fewer bugs)
-    // If you want smoother updates, we can store seriesRef and update data instead.
-  }, [candles]);
-
-  // Recreate chart when candles change (simple + reliable)
-  useEffect(() => {
-    if (!ref.current) return;
-
-    // wipe and rebuild
-    ref.current.innerHTML = "";
-
-    const chart = createChart(ref.current, {
-      height: 320,
-      autoSize: true,
-      layout: { textColor: "#e5e7eb", background: { color: "transparent" } },
-      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false },
-    });
-
-    const series = chart.addSeries(CandlestickSeries, {});
-
-    const data: CandlestickData[] = candles.map((c) => ({
-      time: c.time as any,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
-
-    series.setData(data);
+    candleSeries.setData(candleData);
     chart.timeScale().fitContent();
 
-    return () => chart.remove();
-  }, [candles]);
+    const markers: SeriesMarker<Time>[] = [];
 
-  return <div ref={ref} className="w-full" />;
+    for (const p of pivots) {
+      markers.push({
+        time: ts(p.time) as Time,
+        position: p.kind === "high" ? "aboveBar" : "belowBar",
+        shape: "circle",
+        color: p.kind === "high" ? "#fbbf24" : "#60a5fa",
+        size: 1,
+      });
+    }
+
+    for (const p of highlights) {
+      markers.push({
+        time: ts(p.time) as Time,
+        position: p.kind === "high" ? "aboveBar" : "belowBar",
+        shape: p.kind === "high" ? "arrowDown" : "arrowUp",
+        color: p.kind === "high" ? "#f97316" : "#22c55e",
+        text: p.label ?? (p.kind === "high" ? "High" : "Low"),
+        size: 2,
+      });
+    }
+
+    markersRef.current?.setMarkers(markers);
+
+    const highLine = highLineRef.current;
+    const lowLine = lowLineRef.current;
+
+    if (highLine) {
+      if (trendLines?.high) {
+        highLine.setData([
+          { time: ts(trendLines.high.a.time), value: trendLines.high.a.price },
+          { time: ts(trendLines.high.b.time), value: trendLines.high.b.price },
+        ]);
+      } else {
+        highLine.setData([]);
+      }
+    }
+
+    if (lowLine) {
+      if (trendLines?.low) {
+        lowLine.setData([
+          { time: ts(trendLines.low.a.time), value: trendLines.low.a.price },
+          { time: ts(trendLines.low.b.time), value: trendLines.low.b.price },
+        ]);
+      } else {
+        lowLine.setData([]);
+      }
+    }
+  }, [candleData, pivots, highlights, trendLines]);
+
+  return <div ref={elRef} className="w-full" />;
 }

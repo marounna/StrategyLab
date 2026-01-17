@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-
+import { pivots as calcPivots } from "@/lib/pivots";
+import type { PivotPoint, TrendLines } from "@/components/CandleChart";
+import HistoryBar, { upsertHistory } from "@/components/HistoryBar";
 import AssetSearch from "@/components/AssetSearch";
 import { ChecklistStepper } from "@/components/ChecklistStepper";
 import { CandleChart } from "@/components/CandleChart";
@@ -97,16 +99,157 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset?.symbol]);
 
+
+  
+
   const evaluation: LongEval | null = useMemo(() => {
     if (!asset) return null;
     if (!h4.length || !h1.length || !m15.length || !m5.length) return null;
     return evalLong(h4, h1, m15, m5, settings);
   }, [asset, h4, h1, m15, m5, settings]);
 
+      useEffect(() => {
+      if (!asset?.symbol) return;
+      if (!evaluation) return;
+
+      upsertHistory({
+        symbol: asset.symbol,
+        name: asset.instrument_name,
+        at: Date.now(),
+        ok: evaluation.ok,
+        entry: evaluation.entry ?? null,
+        sl: evaluation.sl ?? null,
+        tp1: evaluation.tp1 ?? null,
+        rr: evaluation.rr ?? null,
+      });
+    }, [
+      asset?.symbol,
+      evaluation?.ok,
+      evaluation?.entry,
+      evaluation?.sl,
+      evaluation?.tp1,
+      evaluation?.rr,
+    ]);
+
+
   const uiSteps = useMemo(() => {
     if (!evaluation) return [];
     return toStepUI(evaluation.steps);
   }, [evaluation]);
+
+  const h4Overlays = useMemo(() => {
+  if (!h4.length) return { pivots: [], highlights: [], trendLines: undefined as TrendLines | undefined };
+
+  const psRaw = calcPivots(h4 as any, settings.pivot.leftBars, settings.pivot.rightBars);
+  const ps = toPivotPoints(psRaw);
+
+  const highs = lastTwoOfKind(ps, "high");
+  const lows = lastTwoOfKind(ps, "low");
+
+  const highlights: PivotPoint[] = [];
+  if (highs.prev) highlights.push({ ...highs.prev, kind: "high", label: "Prev High" });
+  if (highs.last) highlights.push({ ...highs.last, kind: "high", label: "Last High" });
+  if (lows.prev) highlights.push({ ...lows.prev, kind: "low", label: "Prev Low" });
+  if (lows.last) highlights.push({ ...lows.last, kind: "low", label: "Last Low" });
+
+  const trendLines: TrendLines = {
+    high: highs.prev && highs.last ? { a: highs.prev, b: highs.last } : undefined,
+    low: lows.prev && lows.last ? { a: lows.prev, b: lows.last } : undefined,
+  };
+
+  return { pivots: ps, highlights, trendLines };
+}, [h4, settings.pivot.leftBars, settings.pivot.rightBars]);
+
+const h1Overlays = useMemo(() => {
+  if (!h1.length) return { pivots: [], highlights: [], trendLines: undefined as TrendLines | undefined };
+
+  const psRaw = calcPivots(h1 as any, settings.pivot.leftBars, settings.pivot.rightBars);
+  const ps = toPivotPoints(psRaw);
+
+  const highs = lastTwoOfKind(ps, "high");
+  const lows = lastTwoOfKind(ps, "low");
+
+  const highlights: PivotPoint[] = [];
+  if (highs.prev) highlights.push({ ...highs.prev, kind: "high", label: "Prev High" });
+  if (highs.last) highlights.push({ ...highs.last, kind: "high", label: "Last High" });
+  if (lows.prev) highlights.push({ ...lows.prev, kind: "low", label: "Prev Low" });
+  if (lows.last) highlights.push({ ...lows.last, kind: "low", label: "Last Low" });
+
+  const trendLines: TrendLines = {
+    high: highs.prev && highs.last ? { a: highs.prev, b: highs.last } : undefined,
+    low: lows.prev && lows.last ? { a: lows.prev, b: lows.last } : undefined,
+  };
+
+  return { pivots: ps, highlights, trendLines };
+}, [h1, settings.pivot.leftBars, settings.pivot.rightBars]);
+
+const m15Overlays = useMemo(() => {
+  if (!m15.length) return { pivots: [], highlights: [], trendLines: undefined as TrendLines | undefined };
+
+  const psRaw = calcPivots(m15 as any, settings.pivot.leftBars, settings.pivot.rightBars);
+  const ps = toPivotPoints(psRaw);
+
+  const highs = lastTwoOfKind(ps, "high");
+  const lows = lastTwoOfKind(ps, "low");
+
+  const highlights: PivotPoint[] = [];
+  if (highs.prev) highlights.push({ ...highs.prev, kind: "high", label: "Prev High" });
+  if (highs.last) highlights.push({ ...highs.last, kind: "high", label: "Last High" });
+  if (lows.prev) highlights.push({ ...lows.prev, kind: "low", label: "Prev Low" });
+  if (lows.last) highlights.push({ ...lows.last, kind: "low", label: "Last Low" });
+
+  const trendLines: TrendLines = {
+    high: highs.prev && highs.last ? { a: highs.prev, b: highs.last } : undefined,
+    low: lows.prev && lows.last ? { a: lows.prev, b: lows.last } : undefined,
+  };
+
+  return { pivots: ps, highlights, trendLines };
+}, [m15, settings.pivot.leftBars, settings.pivot.rightBars]);
+
+const m5Overlays = useMemo(() => {
+  if (!m5.length) return { pivots: [], highlights: [], trendLines: undefined as TrendLines | undefined };
+
+  const psRaw = calcPivots(m5 as any, settings.pivot.leftBars, settings.pivot.rightBars);
+  const ps = toPivotPoints(psRaw);
+
+  const highs = lastTwoOfKind(ps, "high");
+  const lows = lastTwoOfKind(ps, "low");
+
+  const highlights: PivotPoint[] = [];
+  if (highs.prev) highlights.push({ ...highs.prev, kind: "high", label: "Prev High" });
+  if (highs.last) highlights.push({ ...highs.last, kind: "high", label: "Last High" });
+  if (lows.prev) highlights.push({ ...lows.prev, kind: "low", label: "Prev Low" });
+  if (lows.last) highlights.push({ ...lows.last, kind: "low", label: "Last Low" });
+
+  const trendLines: TrendLines = {
+    high: highs.prev && highs.last ? { a: highs.prev, b: highs.last } : undefined,
+    low: lows.prev && lows.last ? { a: lows.prev, b: lows.last } : undefined,
+  };
+
+  return { pivots: ps, highlights, trendLines };
+}, [m5, settings.pivot.leftBars, settings.pivot.rightBars]);
+
+
+  function lastTwoOfKind(
+  ps: { time: number; price: number; kind: "high" | "low" }[],
+  kind: "high" | "low"
+) {
+  const xs = ps.filter((p) => p.kind === kind);
+  if (xs.length < 2) return { prev: null, last: null };
+  return { prev: xs[xs.length - 2], last: xs[xs.length - 1] };
+}
+
+function toPivotPoints(
+  ps: any[]
+): PivotPoint[] {
+  // your pivots() likely returns: { index, time, price, kind }
+  return ps.map((p) => ({
+    time: p.time,
+    price: p.price,
+    kind: p.kind,
+  }));
+}
+
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 max-w-5xl mx-auto">
@@ -121,6 +264,10 @@ export default function Page() {
             setAsset({ symbol: a.symbol, instrument_name: a.instrument_name })
           }
         />
+        <HistoryBar
+            onPick={(symbol) => setAsset({ symbol })}
+          />
+
       </div>
 
       {asset && (
@@ -199,22 +346,42 @@ export default function Page() {
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
                       <div className="font-semibold mb-2">H4</div>
-                      <CandleChart candles={h4} />
+                      <CandleChart
+  candles={h4}
+  pivots={h4Overlays.pivots}
+  highlights={h4Overlays.highlights}
+  trendLines={h4Overlays.trendLines}
+/>
                     </div>
 
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
                       <div className="font-semibold mb-2">H1</div>
-                      <CandleChart candles={h1} />
+                      <CandleChart
+  candles={h1}
+  pivots={h4Overlays.pivots}
+  highlights={h4Overlays.highlights}
+  trendLines={h4Overlays.trendLines}
+/>
                     </div>
 
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
                       <div className="font-semibold mb-2">M15</div>
-                      <CandleChart candles={m15} />
+                      <CandleChart
+  candles={m15}
+  pivots={h4Overlays.pivots}
+  highlights={h4Overlays.highlights}
+  trendLines={h4Overlays.trendLines}
+/>
                     </div>
 
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
                       <div className="font-semibold mb-2">M5</div>
-                      <CandleChart candles={m5} />
+                      <CandleChart
+  candles={m5}
+  pivots={h4Overlays.pivots}
+  highlights={h4Overlays.highlights}
+  trendLines={h4Overlays.trendLines}
+/>
                     </div>
                   </div>
                 </div>
